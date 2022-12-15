@@ -1,5 +1,5 @@
 
-name: 触发编译OpenWrt固件
+name: go
 
 on: 
   release:
