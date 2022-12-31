@@ -12,7 +12,7 @@ on:
           default: 'true'
         config_name:
           description: '自定义.config输出文件名'
-          required: 'my.config'
+          required: true
           default: 'my.config'
       
 
