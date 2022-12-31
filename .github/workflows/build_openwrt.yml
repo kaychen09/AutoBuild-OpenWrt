@@ -1,0 +1,187 @@
+
+name: Build OpenWrt
+
+on: 
+  release:
+    types: [published]
+  workflow_dispatch:
+      inputs:
+        ssh:
+          description: '使用ssh连接吗？'
+          required: false
+          default: 'false'
+      
+
+  #push:
+  #  branches: 
+  #    - master
+
+  # # 定时触发开启开始编译(把下面两个#去掉开启,时间设置请看定时开启编译说明)
+  # schedule:
+  #   - cron: 30 8 * * *
+
+  #watch:
+  #  types: [started]
+env:
+  REPO_URL: https://github.com/openwrt/openwrt
+  REPO_BRANCH: openwrt-22.03
+  FEEDS_CONF: feeds.conf.default
+  CONFIG_FILE: my.config
+  DIY_P1_SH: diy-part1.sh
+  DIY_P2_SH: diy-part2.sh
+  UPLOAD_BIN_DIR: true
+  UPLOAD_FIRMWARE: true
+  TZ: Asia/Shanghai
+
+jobs:
+  build:
+    name: 编译OpenWrt
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 检出仓库代码
+      uses: actions/checkout@master
+    
+
+
+    - name: 编译环境部署
+      env:
+        DEBIAN_FRONTEND: noninteractive
+      run: |
+        set +e
+        sudo timedatectl set-timezone "$TZ"
+        docker rmi `docker images -q`
+        echo "正在删除文件"
+        sudo rm -rf \
+          /usr/share/dotnet \
+          /etc/mysql \
+          /etc/php
+        sudo -E apt-get -y purge \
+          azure-cli \
+          ghc* \
+          zulu* \
+          hhvm \
+          llvm* \
+          firefox \
+          google* \
+          dotnet* \
+          powershell \
+          openjdk* \
+          mysql* \
+          php*
+        echo "正在更新数据源列表"
+        sudo -E apt-get update
+        echo "正在安装依赖"
+        sudo -E apt-get -y install build-essential asciidoc binutils bzip2 gawk gettext git libncurses5-dev libz-dev patch python3 python2.7 unzip zlib1g-dev lib32gcc1 libc6-dev-i386 subversion flex uglifyjs git-core gcc-multilib p7zip p7zip-full msmtp libssl-dev texinfo libglib2.0-dev xmlto qemu-utils upx libelf-dev autoconf automake libtool autopoint device-tree-compiler g++-multilib antlr3 gperf wget curl swig rsync
+        echo "正在清理不需要的依赖"
+        sudo -E apt-get -y autoremove --purge
+        sudo -E apt-get clean
+
+    - name: 下载源码
+      run: |
+        git clone --depth 1 $REPO_URL -b $REPO_BRANCH openwrt
+        cd openwrt
+        #echo "src-git ssrp https://github.com/fw876/helloworld.git" >> ./feeds.conf.default
+
+    - name: 加载自定义feeds和自定义脚本1
+      run: |
+        if [[ -e $FEEDS_CONF ]]; then
+          echo "存在feeds文件$FEEDS_CONF，加载自定义feeds"
+          mv $FEEDS_CONF ./openwrt/feeds.conf.default
+        else
+          echo "不存在feeds文件，跳过"
+        fi
+        if [[ -e $DIY_P1_SH ]]; then
+          echo "存在自定义脚本$DIY_P1_SH，开始执行"
+          chmod +x $DIY_P1_SH
+          $GITHUB_WORKSPACE/$DIY_P1_SH
+        else
+          echo "不存在自定义脚本，跳过"
+        fi
+
+    - name: 升级feeds和安装feeds
+      working-directory: ./openwrt
+      run: |
+        ./scripts/feeds update -a
+        ./scripts/feeds install -a
+
+    #- name: Import external feeds - passwall
+    #  working-directory: ./openwrt
+    #  run: |
+    #    git clone https://github.com/xiaorouji/openwrt-passwall.git package/lienol
+    #    git clone "your_github_link" package/"your_folder_name"      
+
+    #- name: Import external feeds - JerryKuKu Argon
+    #  working-directory: ./openwrt
+    #  run: |
+    #    git clone -b 18.06 https://github.com/jerrykuku/luci-theme-argon.git package/luci-theme-argon-jerrykuku
+
+    - name: 加载自定义config文件和自定义脚本2
+      run: |
+        if [[ -e $CONFIG_FILE ]]; then
+          echo "存在config文件$CONFIG_FILE，加载"
+          mv $CONFIG_FILE ./openwrt/.config
+        else
+          echo "不存在config文件"
+        fi
+        if [[ -e $DIY_P2_SH ]]; then
+          echo "存在自定义脚本$DIY_P2_SH，开始执行"
+          chmod +x $DIY_P2_SH
+          $GITHUB_WORKSPACE/$DIY_P2_SH
+        else
+          echo "不存在自定义脚本，跳过"
+        fi
+        cd openwrt && make defconfig
+        
+    # - name: SSH connection to Actions
+    #   uses: P3TERX/ssh2actions@v1.0.0
+    #   if: (github.event.inputs.ssh == 'true' && github.event.inputs.ssh  != 'false') || contains(github.event.action, 'ssh')
+    #   env:
+    #     TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+    #     TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        
+    - name: 下载软件包
+      working-directory: ./openwrt
+      run: |
+        make download -j$(nproc)
+        find dl -size -1024c -exec ls -l {} \;
+        find dl -size -1024c -exec rm -f {} \;
+
+    - name: 编译
+      id: compile
+      working-directory: ./openwrt
+      run: |
+        echo -e "开启 $(nproc) 个进程编译"
+        make -j$(nproc) || make -j1 || make -j1 V=s
+        echo "::set-output name=status::success"
+        grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
+        [ -s DEVICE_NAME ] && echo "DEVICE_NAME=_$(cat DEVICE_NAME)" >> $GITHUB_ENV
+        echo "FILE_DATE=_$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
+
+    - name: 检查空间
+      if: (!cancelled())
+      run: df -hT
+
+    - name: 上传bin目录
+      uses: actions/upload-artifact@main
+      if: steps.compile.outputs.status == 'success' && env.UPLOAD_BIN_DIR == 'true' && !cancelled()
+      with:
+        name: OpenWrt_bin${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
+        path: openwrt/bin
+    
+    - name: 整理编译结果
+      id: organize
+      if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
+      run: |
+        cd openwrt/bin/targets/*/*
+        rm -rf packages
+        echo "FIRMWARE=$PWD" >> $GITHUB_ENV
+        echo "::set-output name=status::success"
+    
+    - name: 上传firmware目录
+      uses: actions/upload-artifact@main
+      if: steps.organize.outputs.status == 'success' && !cancelled()
+      with:
+        name: OpenWrt_firmware${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
+        path: ${{ env.FIRMWARE }}
+    
