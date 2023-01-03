@@ -13,6 +13,10 @@ on:
         config_name:
           description: '自定义.config输出文件名'
           default: 'my.config'
+        package_openclash:
+          description: '添加OpenClash？'
+          required: false
+          default: 'false'
       
 
   #push:
@@ -96,12 +100,20 @@ jobs:
         else
           echo "不存在自定义脚本，跳过"
         fi
+    
+    - name: 添加额外feeds：OpenClash
+      if: github.event.inputs.package_openclash == 'true' && github.event.inputs.package_openclash  != 'false'
+      working-directory: ./openwrt
+      run: |
+        git clone -b master https://github.com/vernesong/OpenClash.git package/openclash
 
     - name: 升级feeds和安装feeds
       working-directory: ./openwrt
       run: |
         ./scripts/feeds update -a
         ./scripts/feeds install -a
+
+    
 
     #- name: Import external feeds - passwall
     #  working-directory: ./openwrt
