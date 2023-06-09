@@ -126,13 +126,13 @@ jobs:
     #  run: |
     #    git clone -b 18.06 https://github.com/jerrykuku/luci-theme-argon.git package/luci-theme-argon-jerrykuku
     
-    - name: SSH远程连接（制作.config配置文件）
-      if: github.event.inputs.ssh == 'true' && github.event.inputs.ssh  != 'false'
-      uses: danshui-git/debugger-action@main
+#     - name: SSH远程连接（制作.config配置文件）
+#       if: github.event.inputs.ssh == 'true' && github.event.inputs.ssh  != 'false'
+#       uses: danshui-git/debugger-action@main
     
-    # - name: SSH连接到Actions
-    #   uses: P3TERX/ssh2actions@v1.0.0
-    #   if: (github.event.inputs.ssh == 'true' && github.event.inputs.ssh  != 'false') || contains(github.event.action, 'ssh')
+    - name: SSH连接到Actions
+      uses: P3TERX/ssh2actions@v1.0.0
+      if: github.event.inputs.ssh == 'true' && github.event.inputs.ssh  != 'false'
     #   env:
     #     TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
     #     TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
