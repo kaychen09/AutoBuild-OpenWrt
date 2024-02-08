@@ -1,4 +1,3 @@
-
 name: Creat Config
 
 on: 
@@ -17,18 +16,7 @@ on:
           description: '添加OpenClash？'
           required: false
           default: 'false'
-      
 
-  #push:
-  #  branches: 
-  #    - master
-
-  # # 定时触发开启开始编译(把下面两个#去掉开启,时间设置请看定时开启编译说明)
-  # schedule:
-  #   - cron: 30 8 * * *
-
-  #watch:
-  #  types: [started]
 env:
   REPO_URL: https://github.com/openwrt/openwrt
   REPO_BRANCH: openwrt-23.05
@@ -40,11 +28,9 @@ jobs:
   build:
     name: 生成.config文件
     runs-on: ubuntu-latest
-
     steps:
     - name: 检出仓库代码
       uses: actions/checkout@master
-    
 
     - name: 编译环境部署
       env:
@@ -100,7 +86,7 @@ jobs:
         else
           echo "不存在自定义脚本，跳过"
         fi
-    
+
     - name: 添加额外feeds：OpenClash
       if: github.event.inputs.package_openclash == 'true' && github.event.inputs.package_openclash  != 'false'
       working-directory: ./openwrt
@@ -113,38 +99,17 @@ jobs:
         ./scripts/feeds update -a
         ./scripts/feeds install -a
 
-    
-
-    #- name: Import external feeds - passwall
-    #  working-directory: ./openwrt
-    #  run: |
-    #    git clone https://github.com/xiaorouji/openwrt-passwall.git package/lienol
-    #    git clone "your_github_link" package/"your_folder_name"      
-
-    #- name: Import external feeds - JerryKuKu Argon
-    #  working-directory: ./openwrt
-    #  run: |
-    #    git clone -b 18.06 https://github.com/jerrykuku/luci-theme-argon.git package/luci-theme-argon-jerrykuku
-    
-#     - name: SSH远程连接（制作.config配置文件）
-#       if: github.event.inputs.ssh == 'true' && github.event.inputs.ssh  != 'false'
-#       uses: danshui-git/debugger-action@main
-    
-    - name: SSH连接到Actions
-      uses: P3TERX/ssh2actions@v1.0.0
+    - name: SSH连接到Actions（制作.config配置文件）
       if: github.event.inputs.ssh == 'true' && github.event.inputs.ssh  != 'false'
-    #   env:
-    #     TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-    #     TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-    
+      uses: kaychen09/ssh2actions@main
+
     - name: 整理.config文件路径
       run: |
         cd openwrt
         echo "CONFIG_PWD=$PWD" >> $GITHUB_ENV
-    
+
     - name: 上传.config文件
       uses: actions/upload-artifact@main
       with:
         name: ${{ github.event.inputs.config_name }}
         path: ${{ env.CONFIG_PWD }}/.config
-    
