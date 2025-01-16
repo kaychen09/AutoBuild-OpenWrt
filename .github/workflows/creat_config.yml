@@ -112,4 +112,5 @@ jobs:
       uses: actions/upload-artifact@main
       with:
         name: ${{ github.event.inputs.config_name }}
+        include-hidden-files: true
         path: ${{ env.CONFIG_PWD }}/.config
